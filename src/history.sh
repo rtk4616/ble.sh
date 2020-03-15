@@ -703,7 +703,23 @@ if [[ ! ${_ble_builtin_history_initialized+set} ]]; then
     }
     function ble/builtin/history/.add-rskip {
       local file=$1
+#%if target == "osh"
+      local value=${_ble_builtin_history_rskip_dict[$file]}
+      ((value+=$2))
+      _ble_builtin_history_rskip_dict[$file]=$value
+#%else
+      # Note on \$file Trick: It turned out to be confusing to other people,
+      #   but the quote \$ in the following line is correct and needed.  As
+      #   POSIX specified, shell expansions in arithmetic contexts are
+      #   performed before the string is passed to the arithmetic evaluator.
+      #   If one wants to pass an arbitrary uncontrolled string for the
+      #   associative array key stored in a variable, the shell expansion
+      #   should not occur before the arithmetic evaluator parses the
+      #   arithmetic syntax tree, so quote is needed.  Instead the shell
+      #   expansion will be performed on the array subscript expansion when the
+      #   array element is referenced.
       ((_ble_builtin_history_rskip_dict[\$file]+=$2))
+#%end
     }
   else
     _ble_builtin_history_rskip_path=()

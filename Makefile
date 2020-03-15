@@ -38,6 +38,13 @@ $(OUTDIR)/ble.sh: ble.pp Makefile | $(OUTDIR)
 	DEPENDENCIES_PHONY=1 DEPENDENCIES_OUTPUT=$(@:%.sh=%.dep) DEPENDENCIES_TARGET=$@ FULLVER=$(FULLVER) \
 	  $(MWGPP) $< >/dev/null
 
+outfiles+=$(OUTDIR)/ble.osh
+-include $(OUTDIR)/ble.osh.dep
+$(OUTDIR)/ble.osh: ble.pp Makefile | $(OUTDIR)
+	DEPENDENCIES_PHONY=1 DEPENDENCIES_OUTPUT=$@.dep DEPENDENCIES_TARGET=$@ \
+	  blesh_target=osh FULLVER=$(FULLVER) \
+	  $(MWGPP) $< >/dev/null
+
 outdirs += $(OUTDIR)/keymap
 outfiles += $(OUTDIR)/keymap/emacs.sh
 outfiles += $(OUTDIR)/keymap/vi.sh $(OUTDIR)/keymap/vi_digraph.sh $(OUTDIR)/keymap/vi_digraph.txt $(OUTDIR)/keymap/vi_test.sh

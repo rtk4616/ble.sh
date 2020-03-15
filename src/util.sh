@@ -960,7 +960,7 @@ function blehook {
       local name=${BASH_REMATCH[1]}
       if eval "[[ ! \${_ble_hook_c_$name+set} ]]"; then
         if [[ ${BASH_REMATCH[2]} == :* ]]; then
-          ((_ble_hook_c_$name=0))
+          eval "((_ble_hook_c_$name=0))"
         else
           ble/util/print "blehook: hook \"$name\" is not defined." >&2
           flag_error=1
@@ -1014,7 +1014,7 @@ function blehook/has-hook {
 }
 function blehook/invoke {
   local lastexit=$? FUNCNEST=
-  ((_ble_hook_c_$1++))
+  eval "((_ble_hook_c_$1++))"
   local -a hooks; eval "hooks=(\"\${_ble_hook_h_$1[@]}\")"; shift
   local hook ext=0
   for hook in "${hooks[@]}"; do
@@ -1030,7 +1030,7 @@ function blehook/invoke {
 } 3>&2 2>/dev/null # set -x 対策 #D0930
 function blehook/eval-after-load {
   local hook_name=${1}_load value=$2
-  if ((_ble_hook_c_$hook_name)); then
+  if eval "((_ble_hook_c_$hook_name))"; then
     eval "$value"
   else
     blehook "$hook_name+=$value"
@@ -1252,6 +1252,18 @@ function trap { ble/builtin/trap "$@"; }
 ##   @param[in] filename
 ##     読み取るファイルの場所を指定します。
 ##
+#%if target == "osh"
+function ble/util/readfile {
+  eval "$1=\$(< \"\$2\")"
+}
+function ble/util/mapfile {
+  local _ble_local_i=0 _ble_local_val _ble_local_arr; _ble_local_arr=()
+  while builtin read -r _ble_local_val || [[ $_ble_local_val ]]; do
+    _ble_local_arr[_ble_local_i++]=$_ble_local_val
+  done
+  builtin eval "$1=(\"\${_ble_local_arr[@]}\")"
+}
+#%else
 if ((_ble_bash>=40000)); then
   function ble/util/readfile { # 155ms for man bash
     local __buffer
@@ -1273,6 +1285,7 @@ else
     builtin eval "$1=(\"\${_ble_local_arr[@]}\")"
   }
 fi
+#%end
 
 ## 関数 ble/util/assign var command
 ##   var=$(command) の高速な代替です。
@@ -1285,6 +1298,11 @@ fi
 ##
 _ble_util_assign_base=$_ble_base_run/$$.ble_util_assign.tmp
 _ble_util_assign_level=0
+#%if target == "osh"
+function ble/util/assign {
+  builtin eval "$1=\$(builtin eval \"\${@:2}\")"
+}
+#%else
 if ((_ble_bash>=40000)); then
   # mapfile の方が read より高速
   function ble/util/assign {
@@ -1307,6 +1325,7 @@ else
     return "$_ble_local_ret"
   }
 fi
+#%end
 ## 関数 ble/util/assign-array arr command args...
 ##   mapfile -t arr <(command ...) の高速な代替です。
 ##   command はサブシェルではなく現在のシェルで実行されます。
@@ -1318,6 +1337,7 @@ fi
 ##   @param[in] args...
 ##     command から参照する引数 ($3 $4 ...) を指定します。
 ##
+#%if target != "osh"
 if ((_ble_bash>=40000)); then
   function ble/util/assign-array {
     local _ble_local_tmp=$_ble_util_assign_base.$((_ble_util_assign_level++))
@@ -1328,6 +1348,7 @@ if ((_ble_bash>=40000)); then
     return "$_ble_local_ret"
   }
 else
+#%end
   function ble/util/assign-array {
     local _ble_local_tmp=$_ble_util_assign_base.$((_ble_util_assign_level++))
     builtin eval "$2" >| "$_ble_local_tmp"
@@ -1336,7 +1357,9 @@ else
     ble/util/mapfile "$1" < "$_ble_local_tmp"
     return "$_ble_local_ret"
   }
+#%if target != "osh"
 fi
+#%end
 
 #
 # functions
@@ -1588,6 +1611,7 @@ fi
 ##   @param[in] redirect
 ##     リダイレクトを指定します。
 _ble_util_openat_fdlist=()
+#%if target != "osh"
 if ((_ble_bash>=40100)); then
   function ble/util/openat {
     builtin eval "exec {$1}$2"; local _ble_local_ret=$?
@@ -1595,7 +1619,8 @@ if ((_ble_bash>=40100)); then
     return "$_ble_local_ret"
   }
 else
-  _ble_util_openat_nextfd=$bleopt_openat_base
+#%end
+  _ble_util_openat_nextfd=${bleopt_openat_base:-30}
   function ble/util/openat/.nextfd {
     if ((30100<=_ble_bash&&_ble_bash<30200)); then
       # Bash 3.1 では exec fd>&- で明示的に閉じても駄目。
@@ -1605,18 +1630,28 @@ else
         ((_ble_util_openat_nextfd++))
       done
     fi
+#%if target == "osh"
+    eval "(($1=_ble_util_openat_nextfd++))"
+#%else
     (($1=_ble_util_openat_nextfd++))
+#%end
   }
   function ble/util/openat {
     local _fdvar=$1 _redirect=$2
     ble/util/openat/.nextfd "$1"
     # Note: Bash 3.2/3.1 のバグを避けるため、
     #   >&- を用いて一旦明示的に閉じる必要がある #D0857
+#%if target == "osh"
+    builtin eval "exec ${!1}$2"; local _ble_local_ret=$?
+#%else
     builtin eval "exec ${!1}>&- ${!1}$2"; local _ble_local_ret=$?
+#%end
     ble/array#push _ble_util_openat_fdlist "${!1}"
     return "$_ble_local_ret"
   }
+#%if target != "osh"
 fi
+#%end
 function ble/util/openat/finalize {
   local fd
   for fd in "${_ble_util_openat_fdlist[@]}"; do
@@ -1878,6 +1913,10 @@ function ble/util/msleep/calibrate {
     ble/util/idle.continue
 }
 
+#%if target == "osh"
+# OSH_TODO: Temporary implementation
+function ble/util/msleep/.core { ble/bin/sleep "$1"; }
+#%else
 if ((_ble_bash>=40400)) && ble/util/msleep/.check-builtin-sleep; then
   _ble_util_msleep_builtin_available=1
   _ble_util_msleep_delay=300
@@ -1939,6 +1978,7 @@ elif ble/bin/.freeze-utility-path usleep; then
 elif ble/util/msleep/.check-sleep-decimal-support; then
   function ble/util/msleep/.core { ble/bin/sleep "$1"; }
 fi
+#%end
 
 function ble/util/sleep {
   local msec=$((${1%%.*}*1000))
@@ -2722,7 +2762,7 @@ function ble/util/clock/.initialize {
          local uptime
          ble/util/readfile uptime /proc/uptime
          ble/string#split-words uptime "$uptime"
-         [[ $uptime == *.* ]]; }; then
+         [[ ${uptime[0]} == *.* ]]; }; then
     # implementation with /proc/uptime
     _ble_util_clock_base=$((10#${uptime%.*}))
     _ble_util_clock_reso=10
