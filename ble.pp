@@ -176,8 +176,6 @@ _ble_base_restore_FUNCNEST='
 #%if target == "osh"
 # Pretend to be bash-5.0
 _ble_bash=50000
-# Workaround
-set -o emacs
 #%else
 _ble_bash=$((BASH_VERSINFO[0]*10000+BASH_VERSINFO[1]*100+BASH_VERSINFO[2]))
 #%end
