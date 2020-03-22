@@ -394,7 +394,7 @@ function ble/base/initialize-version-information {
 ble/base/initialize-version-information
 
 _ble_bash_loaded_in_function=0
-#%if target == "oil"
+#%if target == "osh"
 # OSH_TODO: How to test this?
 false && _ble_bash_loaded_in_function=1
 #%else
@@ -602,7 +602,7 @@ function ble/base/initialize-cache-directory/.xdg {
     return 1
   fi
 
-#%if target == "oil"
+#%if target == "osh"
   local ver=${BLE_VERSINFO[0]}.${BLE_VERSINFO[1]}-osh
 #%else
   local ver=${BLE_VERSINFO[0]}.${BLE_VERSINFO[1]}

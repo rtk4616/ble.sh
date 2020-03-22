@@ -1254,7 +1254,7 @@ function trap { ble/builtin/trap "$@"; }
 ##
 #%if target == "osh"
 function ble/util/readfile {
-  eval "$1=\$(< \"\$2\")"
+  eval "$1=\$(cat \"\$2\")"
 }
 function ble/util/mapfile {
   local _ble_local_i=0 _ble_local_val _ble_local_arr; _ble_local_arr=()
@@ -1298,11 +1298,7 @@ fi
 ##
 _ble_util_assign_base=$_ble_base_run/$$.ble_util_assign.tmp
 _ble_util_assign_level=0
-#%if target == "osh"
-function ble/util/assign {
-  builtin eval "$1=\$(builtin eval \"\${@:2}\")"
-}
-#%else
+#%if target != "osh"
 if ((_ble_bash>=40000)); then
   # mapfile の方が read より高速
   function ble/util/assign {
@@ -1315,6 +1311,7 @@ if ((_ble_bash>=40000)); then
     return "$_ble_local_ret"
   }
 else
+#%end
   function ble/util/assign {
     local _ble_local_tmp=$_ble_util_assign_base.$((_ble_util_assign_level++))
     builtin eval "$2" >| "$_ble_local_tmp"
@@ -1324,6 +1321,7 @@ else
     eval "$1=\${$1%$'\n'}"
     return "$_ble_local_ret"
   }
+#%if target != "osh"
 fi
 #%end
 ## 関数 ble/util/assign-array arr command args...
@@ -1641,11 +1639,7 @@ else
     ble/util/openat/.nextfd "$1"
     # Note: Bash 3.2/3.1 のバグを避けるため、
     #   >&- を用いて一旦明示的に閉じる必要がある #D0857
-#%if target == "osh"
-    builtin eval "exec ${!1}$2"; local _ble_local_ret=$?
-#%else
     builtin eval "exec ${!1}>&- ${!1}$2"; local _ble_local_ret=$?
-#%end
     ble/array#push _ble_util_openat_fdlist "${!1}"
     return "$_ble_local_ret"
   }
@@ -2764,7 +2758,7 @@ function ble/util/clock/.initialize {
          ble/string#split-words uptime "$uptime"
          [[ ${uptime[0]} == *.* ]]; }; then
     # implementation with /proc/uptime
-    _ble_util_clock_base=$((10#${uptime%.*}))
+    _ble_util_clock_base=$((10#${uptime[0]%.*}))
     _ble_util_clock_reso=10
     _ble_util_clock_type=uptime
     function ble/util/clock {
